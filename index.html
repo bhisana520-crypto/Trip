@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>我们的小旅行</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root {
+  --cream: #F7F2EC;
+  --warm:  #EDE4D8;
+  --bark:  #A0623A;
+  --ember: #C47A4A;
+  --dusk:  #7A9BBF;
+  --ink:   #2A1A0E;
+  --mist:  #9A8A7A;
+  --heart: #C47A4A;
+  --sun:   #5A8FBF;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body {
+  font-family: 'PingFang SC', 'Noto Serif SC', 'Hiragino Sans GB', serif;
+  background: var(--cream);
+  color: var(--ink);
+  min-height: 100vh;
+  padding-bottom: 80px;
+}
+
+/* ── Grain overlay ── */
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+  pointer-events: none; z-index: 0; opacity: .5;
+}
+
+/* ── Header ── */
+.header {
+  position: sticky; top: 0; z-index: 50;
+  background: linear-gradient(160deg, #8B4A28 0%, #B86A3A 50%, #CC8450 100%);
+  padding: 18px 16px 0;
+  box-shadow: 0 4px 28px rgba(120,60,20,.28);
+}
+.header-top {
+  display: flex; justify-content: space-between;
+  align-items: flex-start; margin-bottom: 16px;
+}
+.trip-name { font-size: 20px; font-weight: 700; color: #fff; letter-spacing: .2px; }
+.trip-date { font-size: 11px; color: rgba(255,255,255,.65); margin-top: 3px; }
+.sync-dot  {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: #7FD47F; margin-top: 6px;
+  box-shadow: 0 0 0 2px rgba(127,212,127,.3);
+  transition: background .3s;
+}
+.sync-dot.syncing { background: #FFD070; animation: pulse 1s infinite; }
+.sync-dot.error   { background: #FF7070; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+/* user switcher */
+.user-pills { display: flex; gap: 6px; }
+.user-pill {
+  border: 1.5px solid rgba(255,255,255,.3);
+  border-radius: 20px; padding: 5px 14px;
+  font-size: 14px; color: rgba(255,255,255,.7);
+  background: transparent; cursor: pointer;
+  transition: all .18s; font-family: inherit;
+}
+.user-pill.active {
+  background: rgba(255,255,255,.25);
+  color: #fff; font-weight: 700;
+  border-color: rgba(255,255,255,.75);
+}
+
+/* tabs */
+.tabs { display: flex; }
+.tab {
+  flex: 1; border: none; background: transparent;
+  color: rgba(255,255,255,.6); padding: 11px 0;
+  font-size: 14px; cursor: pointer; font-family: inherit;
+  border-bottom: 2px solid transparent; transition: all .18s;
+}
+.tab.active { color: #fff; font-weight: 700; border-bottom-color: #fff; }
+
+/* ── Body ── */
+.body { padding: 18px 14px; position: relative; z-index: 1; }
+
+/* ── Toolbar ── */
+.toolbar {
+  display: flex; justify-content: space-between;
+  align-items: center; margin-bottom: 16px;
+}
+.sec-title { font-size: 15px; font-weight: 700; color: var(--ink); }
+.badge { font-size: 12px; color: var(--mist); font-weight: 400; margin-left: 6px; }
+.btn-add {
+  border: none; border-radius: 20px; padding: 7px 16px;
+  font-size: 13px; color: #fff; font-weight: 600;
+  cursor: pointer; font-family: inherit;
+  box-shadow: 0 3px 12px rgba(0,0,0,.15); transition: transform .1s;
+}
+.btn-add:active { transform: scale(.96); }
+
+/* ── Form card ── */
+.form-card {
+  background: #fff; border-radius: 20px; padding: 18px;
+  margin-bottom: 16px;
+  box-shadow: 0 4px 24px rgba(100,60,20,.1);
+  border: 1px solid rgba(200,170,140,.2);
+  animation: slideDown .22s ease;
+}
+@keyframes slideDown { from{opacity:0;transform:translateY(-8px)} to{opacity:1;transform:none} }
+.form-who { font-size: 12px; color: var(--mist); margin-bottom: 14px; }
+.flabel {
+  display: block; font-size: 11px; color: var(--mist);
+  letter-spacing: .5px; text-transform: uppercase;
+  margin-top: 12px; margin-bottom: 5px;
+}
+.finput {
+  width: 100%; border: 1.5px solid #EDE0D0;
+  border-radius: 11px; padding: 10px 13px;
+  font-size: 14px; outline: none;
+  background: #FDFAF7; color: var(--ink);
+  font-family: inherit; transition: border-color .15s;
+}
+.finput:focus { border-color: var(--ember); }
+.ftextarea {
+  width: 100%; border: 1.5px solid #EDE0D0;
+  border-radius: 11px; padding: 10px 13px;
+  font-size: 14px; outline: none; resize: none;
+  background: #FDFAF7; color: var(--ink);
+  font-family: inherit; transition: border-color .15s;
+}
+.ftextarea:focus { border-color: var(--ember); }
+
+/* image strip */
+.img-strip { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 12px; }
+.thumb {
+  width: 64px; height: 64px; object-fit: cover;
+  border-radius: 10px; border: 1.5px solid #EDE0D0; cursor: pointer;
+  transition: transform .15s;
+}
+.thumb:active { transform: scale(.95); }
+.btn-pick {
+  border: 1.5px dashed #D0BEA8; border-radius: 10px;
+  padding: 10px 14px; font-size: 12px; color: #B8A090;
+  background: transparent; cursor: pointer; font-family: inherit;
+}
+
+/* form actions */
+.form-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+.btn-cancel {
+  border: 1.5px solid #DDD; border-radius: 11px;
+  padding: 9px 18px; font-size: 13px;
+  background: #fff; color: #AAA; cursor: pointer; font-family: inherit;
+}
+.btn-save {
+  border: none; border-radius: 11px; padding: 9px 22px;
+  font-size: 13px; color: #fff; font-weight: 700;
+  cursor: pointer; font-family: inherit;
+  box-shadow: 0 3px 10px rgba(0,0,0,.15);
+}
+
+/* ── Empty ── */
+.empty { text-align: center; color: #C8B8A8; padding: 56px 0; font-size: 14px; line-height: 2; }
+
+/* ── Wishlist ── */
+.wish-list { display: flex; flex-direction: column; gap: 10px; }
+.wish-card {
+  background: #fff; border-radius: 16px; padding: 14px;
+  border-left: 4px solid; cursor: default;
+  box-shadow: 0 2px 10px rgba(100,60,20,.07);
+  transition: opacity .2s;
+  animation: fadeIn .25s ease;
+}
+@keyframes fadeIn { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:none} }
+.wish-card.done { opacity: .45; }
+.wish-row { display: flex; align-items: flex-start; gap: 10px; }
+.check-btn {
+  width: 23px; height: 23px; border-radius: 50%;
+  border: 2px solid; flex-shrink: 0; margin-top: 1px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; color: #fff; background: transparent;
+  cursor: pointer; transition: all .18s;
+}
+.wish-text { font-size: 15px; line-height: 1.55; }
+.wish-text.struck { text-decoration: line-through; color: #BBB; }
+.wish-meta { display: flex; gap: 5px; font-size: 11px; color: #C8B8A8; margin-top: 5px; flex-wrap: wrap; }
+.del-btn {
+  border: none; background: transparent; color: #DDD;
+  font-size: 20px; line-height: 1; padding: 0;
+  cursor: pointer; flex-shrink: 0;
+}
+.wish-img {
+  width: 100%; border-radius: 12px; margin-top: 10px;
+  max-height: 210px; object-fit: cover; cursor: pointer;
+}
+
+/* ── Timeline ── */
+.day-block { margin-bottom: 10px; animation: fadeIn .25s ease; }
+.day-head {
+  display: flex; align-items: center; gap: 10px;
+  width: 100%; background: #fff; border: none;
+  border-radius: 16px; padding: 13px 14px;
+  box-shadow: 0 2px 10px rgba(100,60,20,.07);
+  cursor: pointer; text-align: left; font-family: inherit;
+  transition: box-shadow .15s;
+}
+.day-head:active { box-shadow: 0 1px 4px rgba(100,60,20,.08); }
+.day-orb {
+  width: 11px; height: 11px; border-radius: 50%; flex-shrink: 0;
+  background: linear-gradient(135deg, var(--bark), var(--ember));
+}
+.day-date { font-size: 15px; font-weight: 700; }
+.day-sub  { font-size: 12px; color: var(--mist); margin-top: 2px; }
+.chev { font-size: 10px; color: #CCC; margin-left: auto; }
+
+.entries { padding-left: 10px; margin-top: 6px; display: flex; flex-direction: column; gap: 8px; }
+.entry {
+  background: #fff; border-radius: 13px; padding: 13px;
+  border-left: 3px solid;
+  box-shadow: 0 1px 8px rgba(100,60,20,.06);
+  animation: fadeIn .2s ease;
+}
+.entry-hdr {
+  display: flex; align-items: center; gap: 7px;
+  font-size: 12px; margin-bottom: 7px; flex-wrap: wrap;
+}
+.entry-author { font-weight: 700; }
+.entry-loc    { color: #AAA; }
+.entry-time   { color: #DDD; margin-left: auto; font-size: 11px; }
+.entry-text   { font-size: 14px; line-height: 1.75; margin-bottom: 9px; white-space: pre-wrap; }
+.photo-grid   { display: grid; gap: 4px; }
+.photo {
+  width: 100%; object-fit: cover; border-radius: 9px;
+  cursor: pointer; transition: opacity .15s;
+}
+.photo:active { opacity: .85; }
+
+/* ── Bottom bar ── */
+.bottom-bar {
+  position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
+  width: 100%; max-width: 520px;
+  background: rgba(247,242,236,.92);
+  backdrop-filter: blur(12px);
+  border-top: 1px solid rgba(200,170,140,.25);
+  padding: 10px 16px 14px;
+  display: flex; gap: 8px; z-index: 40;
+}
+.btn-export {
+  flex: 1; border: none; border-radius: 12px; padding: 11px;
+  font-size: 13px; color: #fff; font-weight: 600;
+  background: #6A9E6A; cursor: pointer; font-family: inherit;
+  box-shadow: 0 2px 8px rgba(0,0,0,.12);
+}
+.btn-reset {
+  flex: 1; border: none; border-radius: 12px; padding: 11px;
+  font-size: 13px; color: #fff; font-weight: 600;
+  background: #B87070; cursor: pointer; font-family: inherit;
+  box-shadow: 0 2px 8px rgba(0,0,0,.12);
+}
+
+/* ── Lightbox ── */
+.lightbox {
+  position: fixed; inset: 0; background: rgba(0,0,0,.92);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 200; cursor: zoom-out;
+}
+.lightbox img { max-width: 96vw; max-height: 92vh; border-radius: 8px; object-fit: contain; }
+
+/* ── Setup overlay ── */
+.setup-overlay {
+  position: fixed; inset: 0;
+  background: var(--cream);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 300; padding: 24px;
+}
+.setup-card {
+  background: #fff; border-radius: 24px; padding: 36px 28px;
+  width: 100%; max-width: 360px; text-align: center;
+  box-shadow: 0 8px 48px rgba(100,60,20,.14);
+}
+.setup-emoji { font-size: 52px; margin-bottom: 14px; }
+.setup-title { font-size: 24px; font-weight: 700; margin-bottom: 6px; }
+.setup-sub   { font-size: 13px; color: var(--mist); margin-bottom: 28px; }
+.setup-input {
+  width: 100%; border: 1.5px solid #EDE0D0; border-radius: 12px;
+  padding: 12px 14px; font-size: 15px; outline: none;
+  background: #FDFAF7; color: var(--ink); font-family: inherit;
+  margin-bottom: 10px; transition: border-color .15s;
+}
+.setup-input:focus { border-color: var(--ember); }
+.setup-btn {
+  width: 100%; border: none; border-radius: 12px; padding: 13px;
+  font-size: 15px; color: #fff; font-weight: 700;
+  background: linear-gradient(135deg, var(--bark), var(--ember));
+  cursor: pointer; font-family: inherit; margin-top: 6px;
+  box-shadow: 0 4px 16px rgba(160,80,30,.25);
+}
+
+/* ── Tab panels ── */
+.panel { display: none; }
+.panel.active { display: block; }
+
+/* ── Print ── */
+@media print {
+  .header { position: static; background: #8B4A28 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .tabs, .user-pills, .toolbar, .form-card, .del-btn,
+  .bottom-bar, body::before { display: none !important; }
+  .panel { display: block !important; }
+  .entries { display: flex !important; }
+  .print-title { display: block !important; font-size: 16px; font-weight: 700; color: var(--bark); margin: 18px 0 10px; border-bottom: 1.5px solid #EEE; padding-bottom: 6px; }
+  .day-head, .wish-card, .entry { box-shadow: none !important; border: 1px solid #EEE; page-break-inside: avoid; }
+}
+.print-title { display: none; }
+</style>
+</head>
+<body>
+
+<!-- Setup overlay -->
+<div class="setup-overlay" id="setupOverlay">
+  <div class="setup-card">
+    <div class="setup-emoji">🗺️</div>
+    <div class="setup-title">给旅行起个名字</div>
+    <div class="setup-sub">之后可以随时修改</div>
+    <input class="setup-input" id="setupName" placeholder="例：广州五天四夜" maxlength="24">
+    <input class="setup-input" id="setupDate" placeholder="例：2025年3月" maxlength="20">
+    <button class="setup-btn" onclick="saveSetup()">开始记录 →</button>
+  </div>
+</div>
+
+<!-- Header -->
+<div class="header">
+  <div class="header-top">
+    <div>
+      <div class="trip-name" id="tripName">我们的小旅行</div>
+      <div class="trip-date" id="tripDate"></div>
+    </div>
+    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px">
+      <div class="user-pills">
+        <button class="user-pill active" data-u="heart" onclick="switchUser('heart')">♥</button>
+        <button class="user-pill" data-u="sun" onclick="switchUser('sun')">🌤</button>
+      </div>
+      <div class="sync-dot" id="syncDot" title="同步状态"></div>
+    </div>
+  </div>
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('wish')">💛 心愿单</button>
+    <button class="tab" onclick="switchTab('time')">📅 时间线</button>
+  </div>
+</div>
+
+<div class="body">
+
+  <!-- WISHLIST -->
+  <div class="panel active" id="panel-wish">
+    <div class="print-title">💛 心愿清单</div>
+    <div class="toolbar">
+      <span class="sec-title">心愿清单 <span class="badge" id="wishBadge"></span></span>
+      <button class="btn-add" id="wishAddBtn" onclick="openWishForm()" style="background:var(--ember)">＋ 添加</button>
+    </div>
+    <div class="form-card" id="wishFormCard" style="display:none">
+      <div class="form-who" id="wishFormWho"></div>
+      <textarea class="ftextarea" id="wishText" rows="3" placeholder="想去哪里，想吃什么，想做什么..."></textarea>
+      <div class="img-strip" id="wishImgStrip">
+        <button class="btn-pick" onclick="document.getElementById('wishFile').click()">📷 配图</button>
+        <input type="file" id="wishFile" accept="image/*" style="display:none" onchange="onWishImg(event)">
+      </div>
+      <div class="form-actions">
+        <button class="btn-cancel" onclick="closeWishForm()">取消</button>
+        <button class="btn-save" id="wishSaveBtn" onclick="submitWish()">保存</button>
+      </div>
+    </div>
+    <div class="empty" id="wishEmpty">还没有心愿，快来许愿吧 ✨</div>
+    <div class="wish-list" id="wishList"></div>
+  </div>
+
+  <!-- TIMELINE -->
+  <div class="panel" id="panel-time">
+    <div class="print-title">📅 时间线</div>
+    <div class="toolbar">
+      <span class="sec-title">旅行日记</span>
+      <button class="btn-add" id="dayAddBtn" onclick="openDayForm()" style="background:var(--ember)">＋ 记录</button>
+    </div>
+    <div class="form-card" id="dayFormCard" style="display:none">
+      <div class="form-who" id="dayFormWho"></div>
+      <label class="flabel">日期</label>
+      <input type="date" class="finput" id="dayDate">
+      <label class="flabel">地点（选填）</label>
+      <input class="finput" id="dayLoc" placeholder="例：北京路、珠江新城...">
+      <label class="flabel">记录</label>
+      <textarea class="ftextarea" id="dayDesc" rows="4" placeholder="今天发生了什么..."></textarea>
+      <div class="img-strip" id="dayImgStrip">
+        <button class="btn-pick" onclick="document.getElementById('dayFile').click()">📷 添加照片</button>
+        <input type="file" id="dayFile" accept="image/*" multiple style="display:none" onchange="onDayImgs(event)">
+      </div>
+      <div class="form-actions">
+        <button class="btn-cancel" onclick="closeDayForm()">取消</button>
+        <button class="btn-save" id="daySaveBtn" onclick="submitDay()">保存</button>
+      </div>
+    </div>
+    <div class="empty" id="dayEmpty">旅行还没开始，期待你们的记录 🌆</div>
+    <div id="timeline"></div>
+  </div>
+</div>
+
+<!-- Bottom bar -->
+<div class="bottom-bar">
+  <button class="btn-export" onclick="exportPDF()">📄 导出 PDF</button>
+  <button class="btn-reset" onclick="resetTrip()">🗑 新旅行</button>
+</div>
+
+<!-- Lightbox -->
+<div class="lightbox" id="lightbox" style="display:none" onclick="this.style.display='none'">
+  <img id="lbImg" src="" alt="">
+</div>
+
+<script>
+// ── Supabase ──────────────────────────────────────────────────
+const { createClient } = supabase;
+const sb = createClient(
+  'https://ipkjvnmhyyntsmqlgsjn.supabase.co',
+  'sb_publishable_kQE_9u2x5D-GpMMnY5pa9w_FFQCG5aj'
+);
+
+// ── State ─────────────────────────────────────────────────────
+const USERS = {
+  heart: { label:'♥',  color:'#C47A4A' },
+  sun:   { label:'🌤', color:'#5A8FBF' },
+};
+let currentUser = 'heart';
+let currentTab  = 'wish';
+let wishlist    = [];
+let timeline    = [];
+let expanded    = new Set();
+let wishImg     = null;
+let dayImgs     = [];
+
+// ── Setup ─────────────────────────────────────────────────────
+function saveSetup() {
+  const n = document.getElementById('setupName').value.trim();
+  const d = document.getElementById('setupDate').value.trim();
+  if (!n) return;
+  localStorage.setItem('tn', n); localStorage.setItem('td', d);
+  document.getElementById('tripName').textContent = n + ' 🗺️';
+  document.getElementById('tripDate').textContent = d;
+  document.getElementById('setupOverlay').style.display = 'none';
+}
+function loadMeta() {
+  const n = localStorage.getItem('tn'), d = localStorage.getItem('td');
+  if (n) { document.getElementById('tripName').textContent = n + ' 🗺️'; document.getElementById('tripDate').textContent = d||''; document.getElementById('setupOverlay').style.display='none'; }
+}
+
+// ── Sync indicator ────────────────────────────────────────────
+function setSyncState(s) { // 'ok'|'syncing'|'error'
+  const dot = document.getElementById('syncDot');
+  dot.className = 'sync-dot' + (s==='syncing'?' syncing':s==='error'?' error':'');
+}
+
+// ── DB helpers ────────────────────────────────────────────────
+async function dbFetch() {
+  setSyncState('syncing');
+  try {
+    const [{ data: w }, { data: t }] = await Promise.all([
+      sb.from('wishlist').select('*').order('created_at'),
+      sb.from('timeline').select('*').order('date').order('created_at'),
+    ]);
+    wishlist = w || [];
+    // group timeline by date
+    const map = {};
+    (t||[]).forEach(e => { if(!map[e.date]) map[e.date]=[];  map[e.date].push(e); });
+    timeline = Object.entries(map).sort((a,b)=>a[0].localeCompare(b[0])).map(([date,entries])=>({date,entries}));
+    renderWishlist(); renderTimeline();
+    setSyncState('ok');
+  } catch(e) { setSyncState('error'); }
+}
+
+// ── Realtime ──────────────────────────────────────────────────
+function subscribeRealtime() {
+  sb.channel('all-changes')
+    .on('postgres_changes',{event:'*',schema:'public',table:'wishlist'}, ()=>dbFetch())
+    .on('postgres_changes',{event:'*',schema:'public',table:'timeline'}, ()=>dbFetch())
+    .subscribe();
+}
+
+// ── Compress image ────────────────────────────────────────────
+function compress(file, cb) {
+  const img = new Image(), url = URL.createObjectURL(file);
+  img.onload = () => {
+    const MAX=900; let w=img.width, h=img.height;
+    if(w>MAX||h>MAX){ if(w>h){h=Math.round(h*MAX/w);w=MAX;}else{w=Math.round(w*MAX/h);h=MAX;} }
+    const c=document.createElement('canvas'); c.width=w; c.height=h;
+    c.getContext('2d').drawImage(img,0,0,w,h);
+    URL.revokeObjectURL(url); cb(c.toDataURL('image/jpeg',.72));
+  }; img.src=url;
+}
+
+// ── User / Tab ────────────────────────────────────────────────
+function switchUser(u) {
+  currentUser=u;
+  document.querySelectorAll('.user-pill').forEach(b=>b.classList.toggle('active',b.dataset.u===u));
+}
+function switchTab(t) {
+  currentTab=t;
+  document.querySelectorAll('.tab').forEach((b,i)=>b.classList.toggle('active',['wish','time'][i]===t));
+  document.getElementById('panel-wish').classList.toggle('active',t==='wish');
+  document.getElementById('panel-time').classList.toggle('active',t==='time');
+}
+
+// ── Utils ─────────────────────────────────────────────────────
+function uid() { return Date.now().toString(36)+Math.random().toString(36).slice(2,5); }
+function fmtDate(s) {
+  const d=new Date(s+'T12:00:00');
+  return d.toLocaleDateString('zh-CN',{month:'long',day:'numeric',weekday:'short'});
+}
+function fmtTime(iso) { const d=new Date(iso); return d.toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'}); }
+function esc(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>'); }
+function openLB(src) { document.getElementById('lbImg').src=src; document.getElementById('lightbox').style.display='flex'; }
+
+// ── WISHLIST ──────────────────────────────────────────────────
+function openWishForm() {
+  const u=USERS[currentUser];
+  document.getElementById('wishFormWho').textContent=u.label+' 添加心愿';
+  document.getElementById('wishSaveBtn').style.background=u.color;
+  wishImg=null; document.getElementById('wishText').value='';
+  renderWishImgStrip();
+  document.getElementById('wishFormCard').style.display='block';
+  document.getElementById('wishText').focus();
+}
+function closeWishForm() { document.getElementById('wishFormCard').style.display='none'; wishImg=null; }
+function onWishImg(e) {
+  const f=e.target.files[0]; if(!f) return;
+  compress(f,b64=>{ wishImg=b64; renderWishImgStrip(); }); e.target.value='';
+}
+function renderWishImgStrip() {
+  const s=document.getElementById('wishImgStrip'); s.innerHTML='';
+  if(wishImg){ const i=document.createElement('img'); i.src=wishImg; i.className='thumb'; i.onclick=()=>openLB(wishImg); s.appendChild(i); }
+  const b=document.createElement('button'); b.className='btn-pick'; b.textContent='📷 配图';
+  b.onclick=()=>document.getElementById('wishFile').click(); s.appendChild(b);
+}
+async function submitWish() {
+  const text=document.getElementById('wishText').value.trim(); if(!text) return;
+  setSyncState('syncing');
+  const {error}=await sb.from('wishlist').insert({id:uid(),text,image_data:wishImg,author:currentUser,done:false});
+  if(error){setSyncState('error');return;}
+  closeWishForm();
+}
+async function toggleWish(id,done) {
+  await sb.from('wishlist').update({done:!done}).eq('id',id);
+}
+async function deleteWish(id) {
+  if(!confirm('删除这条心愿？')) return;
+  await sb.from('wishlist').delete().eq('id',id);
+}
+function renderWishlist() {
+  const list=document.getElementById('wishList');
+  const empty=document.getElementById('wishEmpty');
+  const done=wishlist.filter(w=>w.done).length;
+  document.getElementById('wishBadge').textContent=wishlist.length?`${done}/${wishlist.length} 已完成`:'';
+  if(!wishlist.length){ empty.style.display='block'; list.innerHTML=''; return; }
+  empty.style.display='none';
+  list.innerHTML=wishlist.map(w=>{
+    const u=USERS[w.author]||USERS.heart;
+    return `<div class="wish-card${w.done?' done':''}" style="border-left-color:${u.color}">
+      <div class="wish-row">
+        <button class="check-btn" style="border-color:${u.color};background:${w.done?u.color:'transparent'}"
+          onclick="toggleWish('${w.id}',${w.done})">${w.done?'✓':''}</button>
+        <div style="flex:1">
+          <div class="wish-text${w.done?' struck':''}">${esc(w.text)}</div>
+          <div class="wish-meta"><span style="color:${u.color}">${u.label}</span><span>·</span><span>${fmtDate(w.created_at.slice(0,10))}</span></div>
+        </div>
+        <button class="del-btn" onclick="deleteWish('${w.id}')">×</button>
+      </div>
+      ${w.image_data?`<img class="wish-img" src="${w.image_data}" onclick="openLB(this.src)">`:''}</div>`;
+  }).join('');
+}
+
+// ── TIMELINE ─────────────────────────────────────────────────
+function openDayForm() {
+  const u=USERS[currentUser];
+  document.getElementById('dayFormWho').textContent=u.label+' 添加记录';
+  document.getElementById('daySaveBtn').style.background=u.color;
+  dayImgs=[]; document.getElementById('dayDate').value=new Date().toISOString().slice(0,10);
+  document.getElementById('dayLoc').value=''; document.getElementById('dayDesc').value='';
+  renderDayImgStrip();
+  document.getElementById('dayFormCard').style.display='block';
+}
+function closeDayForm() { document.getElementById('dayFormCard').style.display='none'; dayImgs=[]; }
+function onDayImgs(e) {
+  const files=Array.from(e.target.files); if(!files.length) return;
+  let done=0;
+  files.forEach(f=>compress(f,b64=>{ dayImgs.push(b64); if(++done===files.length) renderDayImgStrip(); }));
+  e.target.value='';
+}
+function renderDayImgStrip() {
+  const s=document.getElementById('dayImgStrip'); s.innerHTML='';
+  dayImgs.forEach(src=>{ const i=document.createElement('img'); i.src=src; i.className='thumb'; i.onclick=()=>openLB(src); s.appendChild(i); });
+  const b=document.createElement('button'); b.className='btn-pick'; b.textContent='📷 添加照片';
+  b.onclick=()=>document.getElementById('dayFile').click(); s.appendChild(b);
+}
+async function submitDay() {
+  const date=document.getElementById('dayDate').value; if(!date) return;
+  setSyncState('syncing');
+  const {error}=await sb.from('timeline').insert({
+    id:uid(), date, location:document.getElementById('dayLoc').value.trim(),
+    description:document.getElementById('dayDesc').value.trim(),
+    images:JSON.stringify(dayImgs), author:currentUser
+  });
+  if(error){setSyncState('error');return;}
+  expanded.add(date); closeDayForm();
+}
+function toggleDay(date) {
+  if(expanded.has(date)) expanded.delete(date); else expanded.add(date);
+  renderTimeline();
+}
+function renderTimeline() {
+  const container=document.getElementById('timeline');
+  const empty=document.getElementById('dayEmpty');
+  if(!timeline.length){ empty.style.display='block'; container.innerHTML=''; return; }
+  empty.style.display='none';
+  container.innerHTML=timeline.map(day=>{
+    const open=expanded.has(day.date);
+    const emojis=[...new Set(day.entries.map(e=>(USERS[e.author]||USERS.heart).label))].join(' ');
+    return `<div class="day-block">
+      <button class="day-head" onclick="toggleDay('${day.date}')">
+        <div class="day-orb"></div>
+        <div style="flex:1">
+          <div class="day-date">${fmtDate(day.date)}</div>
+          <div class="day-sub">${day.entries.length} 条 &nbsp;${emojis}</div>
+        </div>
+        <span class="chev">${open?'▲':'▼'}</span>
+      </button>
+      ${open?`<div class="entries">${day.entries.map(e=>renderEntry(day.date,e)).join('')}</div>`:''}
+    </div>`;
+  }).join('');
+}
+function renderEntry(date,e) {
+  const u=USERS[e.author]||USERS.heart;
+  let imgs=[]; try{ imgs=JSON.parse(e.images||'[]'); }catch{}
+  const cols=imgs.length===1?'1fr':imgs.length===2?'1fr 1fr':'1fr 1fr 1fr';
+  const asp=imgs.length===1?'16/9':'1';
+  return `<div class="entry" style="border-left-color:${u.color}">
+    <div class="entry-hdr">
+      <span class="entry-author" style="color:${u.color}">${u.label}</span>
+      ${e.location?`<span class="entry-loc">📍 ${esc(e.location)}</span>`:''}
+      <span class="entry-time">${fmtTime(e.created_at)}</span>
+      <button class="del-btn" onclick="deleteEntry('${e.id}')">×</button>
+    </div>
+    ${e.description?`<div class="entry-text">${esc(e.description)}</div>`:''}
+    ${imgs.length?`<div class="photo-grid" style="grid-template-columns:${cols}">
+      ${imgs.map(src=>`<img class="photo" src="${src}" style="aspect-ratio:${asp}" onclick="openLB(this.src)">`).join('')}
+    </div>`:''}
+  </div>`;
+}
+async function deleteEntry(id) {
+  if(!confirm('删除这条记录？')) return;
+  await sb.from('timeline').delete().eq('id',id);
+}
+
+// ── Export / Reset ────────────────────────────────────────────
+function exportPDF() {
+  timeline.forEach(d=>expanded.add(d.date)); renderTimeline();
+  document.getElementById('panel-wish').classList.add('active');
+  document.getElementById('panel-time').classList.add('active');
+  setTimeout(()=>{ window.print(); switchTab(currentTab); },300);
+}
+async function resetTrip() {
+  if(!confirm('清空所有数据，开始新旅行？\n（不可撤销）')) return;
+  await Promise.all([sb.from('wishlist').delete().neq('id','__none__'), sb.from('timeline').delete().neq('id','__none__')]);
+  localStorage.removeItem('tn'); localStorage.removeItem('td');
+  wishlist=[]; timeline=[]; expanded.clear();
+  document.getElementById('tripName').textContent='我们的小旅行';
+  document.getElementById('tripDate').textContent='';
+  document.getElementById('setupName').value=''; document.getElementById('setupDate').value='';
+  document.getElementById('setupOverlay').style.display='flex';
+  renderWishlist(); renderTimeline();
+}
+
+// ── Init ──────────────────────────────────────────────────────
+loadMeta();
+dbFetch();
+subscribeRealtime();
+</script>
+</body>
+</html>
